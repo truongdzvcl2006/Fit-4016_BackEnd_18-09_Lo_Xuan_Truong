@@ -1,0 +1,405 @@
+﻿<!-- Views/Home/Auction.cshtml -->
+@{
+    ViewData["Title"] = "Đấu giá thời gian thực";
+}
+@{
+    Layout = "~/Views/Home/_HomeLayout.cshtml";
+}
+
+@section Styles {
+    <style>
+        .auction-container {
+            max-width: 1200px;
+            margin: 100px auto 50px;
+            padding: 20px;
+        }
+        .auction-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+        }
+        .current-price {
+            font-size: 48px;
+            font-weight: 700;
+            margin: 20px 0;
+        }
+        .price-update {
+            animation: pulse 1s;
+        }
+        @@keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); color: #4CAF50; }
+            100% { transform: scale(1); }
+        }
+        .bid-history {
+            max-height: 400px;
+            overflow-y: auto;
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 15px;
+        }
+        .bid-item {
+            padding: 10px;
+            border-bottom: 1px solid #dee2e6;
+            animation: slideIn 0.5s;
+        }
+        @@keyframes slideIn {
+            from { opacity: 0; transform: translateX(-20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        .bid-item.highlight {
+            background: #d4edda;
+            border-radius: 5px;
+        }
+        .time-remaining {
+            font-size: 24px;
+            font-weight: 600;
+            color: #dc3545;
+        }
+        .time-extended {
+            animation: flash 1s;
+        }
+        @@keyframes flash {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; background: #fff3cd; }
+        }
+        .bid-step-buttons {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin: 20px 0;
+        }
+        .step-btn {
+            padding: 15px;
+            border: 2px solid #4e73df;
+            border-radius: 10px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 600;
+        }
+        .step-btn:hover {
+            background: #4e73df;
+            color: white;
+            transform: translateY(-2px);
+        }
+        .suggested-price {
+            background: #e8f4fd;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            text-align: center;
+            font-size: 18px;
+            border: 2px dashed #4e73df;
+        }
+        .auto-bid-toggle {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 20px 0;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+        }
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider {
+            background-color: #4e73df;
+        }
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+    </style>
+}
+
+<div class="auction-container">
+    <div class="auction-header">
+        <h1 id="propertyName">Đang tải...</h1>
+        <div class="current-price" id="currentPrice"></div>
+        <div class="time-remaining" id="timeRemaining"></div>
+        <div>Số lượt đấu: <span id="bidCount">0</span></div>
+        <div>Người cao nhất: <span id="highestBidder">-</span></div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h4>Đặt giá</h4>
+                </div>
+                <div class="card-body">
+                    <div class="bid-step-buttons">
+                        <button class="step-btn" onclick="addBidStep(1)">+ Bước 1</button>
+                        <button class="step-btn" onclick="addBidStep(2)">+ Bước 2</button>
+                        <button class="step-btn" onclick="addBidStep(3)">+ Bước 3</button>
+                    </div>
+
+                    <div class="suggested-price" id="suggestedPrice"></div>
+
+                    <div class="form-group">
+                        <label>Nhập giá đấu (VNĐ)</label>
+                        <input type="number" class="form-control" id="bidAmount" placeholder="Nhập số tiền">
+                    </div>
+
+                    <div class="auto-bid-toggle">
+                        <label class="switch">
+                            <input type="checkbox" id="autoBidToggle">
+                            <span class="slider"></span>
+                        </label>
+                        <div>
+                            <strong>Đấu giá tự động</strong>
+                            <br>
+                            <small>Hệ thống sẽ tự động đặt giá cho bạn</small>
+                        </div>
+                    </div>
+
+                    <div id="autoBidConfig" style="display: none;">
+                        <div class="form-group">
+                            <label>Giá tối đa (VNĐ)</label>
+                            <input type="number" class="form-control" id="maxBidAmount" placeholder="Nhập giá tối đa">
+                        </div>
+                    </div>
+
+                    <button class="btn btn-primary btn-lg btn-block" onclick="placeBid()" id="placeBidBtn">
+                        Đặt giá
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h4>Lịch sử đấu giá</h4>
+                </div>
+                <div class="bid-history" id="bidHistory"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/6.0.1/signalr.js"></script>
+    <script>
+        const auctionId = 1; // Lấy từ URL hoặc model
+        const userId = @(Context.Session.GetInt32("UserId") ?? 0);
+        const userName = '@(Context.Session.GetString("UserName") ?? "Khách")';
+        
+        let connection;
+        let currentPrice = 0;
+        let minBidStep = 100000; // 100k
+        let maxBidStep = 1000000; // 1tr
+
+        // Kết nối SignalR
+        connection = new signalR.HubConnectionBuilder()
+            .withUrl("/auctionHub")
+            .withAutomaticReconnect()
+            .build();
+
+        connection.start().then(() => {
+            console.log("Connected to auction hub");
+            connection.invoke("JoinAuctionRoom", auctionId);
+        }).catch(err => console.error(err));
+
+        // Nhận thông tin phiên đấu giá
+        connection.on("AuctionInfo", (info) => {
+            document.getElementById('propertyName').textContent = info.propertyName;
+            updatePrice(info.currentPrice);
+            document.getElementById('bidCount').textContent = info.bidCount;
+            document.getElementById('highestBidder').textContent = info.highestBidder || '-';
+            startCountdown(info.endTime);
+            currentPrice = info.currentPrice;
+            updateSuggestedPrice();
+        });
+
+        // Nhận lịch sử đấu giá
+        connection.on("BidHistory", (history) => {
+            displayBidHistory(history);
+        });
+
+        // Giá được cập nhật
+        connection.on("PriceUpdated", (data) => {
+            updatePrice(data.currentPrice);
+            document.getElementById('highestBidder').textContent = data.highestBidder;
+            currentPrice = data.currentPrice;
+            
+            // Thêm bid mới vào lịch sử
+            addBidToHistory({
+                userName: data.bidder,
+                amount: data.amount,
+                bidTime: new Date().toLocaleString()
+            });
+
+            updateSuggestedPrice();
+        });
+
+        // Thời gian được kéo dài
+        connection.on("TimeExtended", (newEndTime) => {
+            showNotification("⏰ Thời gian đấu giá đã được kéo dài thêm!");
+            document.getElementById('timeRemaining').classList.add('time-extended');
+            setTimeout(() => {
+                document.getElementById('timeRemaining').classList.remove('time-extended');
+            }, 1000);
+            startCountdown(newEndTime);
+        });
+
+        // Nhận kết quả đặt giá
+        connection.on("BidResult", (result) => {
+            if (result.success) {
+                showNotification("✅ Đặt giá thành công!", "success");
+                document.getElementById('bidAmount').value = '';
+            } else {
+                showNotification("❌ " + result.message, "error");
+                if (result.suggestedPrice) {
+                    document.getElementById('bidAmount').value = result.suggestedPrice;
+                }
+            }
+        });
+
+        connection.on("AutoBidActivated", (data) => {
+            showNotification(`🤖 Đã kích hoạt đấu giá tự động với giá tối đa ${formatMoney(data.maxAmount)}`, "info");
+        });
+
+        // Hàm đặt giá
+        function placeBid() {
+            const amount = document.getElementById('bidAmount').value;
+            if (!amount || amount < 0) {
+                alert('Vui lòng nhập số tiền hợp lệ');
+                return;
+            }
+
+            connection.invoke("PlaceBid", auctionId, userId, userName, parseFloat(amount));
+        }
+
+        // Thêm bước giá
+        function addBidStep(step) {
+            const bidAmount = document.getElementById('bidAmount');
+            const currentBid = parseFloat(bidAmount.value) || currentPrice;
+            const stepValue = step * minBidStep;
+            bidAmount.value = currentBid + stepValue;
+        }
+
+        // Cập nhật giá hiện tại với hiệu ứng
+        function updatePrice(price) {
+            const priceElement = document.getElementById('currentPrice');
+            priceElement.textContent = formatMoney(price) + ' đ';
+            priceElement.classList.add('price-update');
+            setTimeout(() => {
+                priceElement.classList.remove('price-update');
+            }, 1000);
+        }
+
+        // Format tiền
+        function formatMoney(amount) {
+            return new Intl.NumberFormat('vi-VN').format(amount);
+        }
+
+        // Đếm ngược thời gian
+        function startCountdown(endTime) {
+            const end = new Date(endTime);
+            
+            function updateCountdown() {
+                const now = new Date();
+                const diff = end - now;
+                
+                if (diff <= 0) {
+                    document.getElementById('timeRemaining').textContent = 'Đã kết thúc';
+                    document.getElementById('placeBidBtn').disabled = true;
+                    return;
+                }
+
+                const seconds = Math.floor((diff / 1000) % 60);
+                const minutes = Math.floor((diff / (1000 * 60)) % 60);
+                const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
+                
+                document.getElementById('timeRemaining').textContent = 
+                    `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            }
+
+            updateCountdown();
+            setInterval(updateCountdown, 1000);
+        }
+
+        // Hiển thị lịch sử đấu giá
+        function displayBidHistory(history) {
+            const historyElement = document.getElementById('bidHistory');
+            historyElement.innerHTML = '';
+            
+            history.sort((a, b) => new Date(b.bidTime) - new Date(a.bidTime));
+            
+            history.forEach(bid => {
+                addBidToHistory(bid);
+            });
+        }
+
+        function addBidToHistory(bid) {
+            const historyElement = document.getElementById('bidHistory');
+            const bidItem = document.createElement('div');
+            bidItem.className = 'bid-item highlight';
+            bidItem.innerHTML = `
+                <strong>${bid.userName}</strong> đã đấu giá 
+                <strong class="text-success">${formatMoney(bid.amount)} đ</strong>
+                <br>
+                <small class="text-muted">${bid.bidTime}</small>
+            `;
+            historyElement.insertBefore(bidItem, historyElement.firstChild);
+        }
+
+        // Hiển thị thông báo
+        function showNotification(message, type = 'info') {
+            // Có thể dùng toastr hoặc alert tùy chỉnh
+            console.log(`[${type}] ${message}`);
+        }
+
+        // Cập nhật giá gợi ý
+        function updateSuggestedPrice() {
+            const suggested = currentPrice + minBidStep;
+            document.getElementById('suggestedPrice').innerHTML = 
+                `💰 Giá gợi ý: <strong>${formatMoney(suggested)} đ</strong> (bước giá tối thiểu)`;
+        }
+
+        // Auto bid toggle
+        document.getElementById('autoBidToggle').addEventListener('change', function(e) {
+            const config = document.getElementById('autoBidConfig');
+            config.style.display = e.target.checked ? 'block' : 'none';
+        });
+
+        // Rời phòng khi rời trang
+        window.addEventListener('beforeunload', function() {
+            connection.invoke("LeaveAuctionRoom", auctionId);
+        });
+    </script>
+}

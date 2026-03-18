@@ -1,0 +1,564 @@
+﻿<!-- Views/Admin/Auctions.cshtml -->
+@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = "Quản lý đấu giá";
+}
+
+<style>
+    .auction-card {
+        background: white;
+        border-radius: 10px;
+        padding: 20px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        margin-bottom: 20px;
+    }
+    
+    .status-badge {
+        padding: 5px 10px;
+        border-radius: 5px;
+        font-weight: 600;
+    }
+    
+    .status-upcoming { background: #ffc107; color: #000; }
+    .status-active { background: #28a745; color: #fff; }
+    .status-ended { background: #6c757d; color: #fff; }
+    .status-cancelled { background: #dc3545; color: #fff; }
+    
+    .price-update {
+        animation: pulse 1s;
+    }
+    
+    @@keyframes pulse {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.05); color: #28a745; }
+        100% { transform: scale(1); }
+    }
+</style>
+
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Quản lý đấu giá</h1>
+        <button class="btn btn-primary" onclick="openCreateAuctionModal()">
+            <i class="fas fa-plus"></i> Tạo phiên đấu giá
+        </button>
+    </div>
+
+    <!-- Thống kê nhanh -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="auction-card">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="text-muted">Sắp diễn ra</h6>
+                        <h3 id="upcomingCount">0</h3>
+                    </div>
+                    <div class="bg-warning p-3 rounded-circle text-white">
+                        <i class="fas fa-clock"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="auction-card">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="text-muted">Đang diễn ra</h6>
+                        <h3 id="activeCount">0</h3>
+                    </div>
+                    <div class="bg-success p-3 rounded-circle text-white">
+                        <i class="fas fa-play"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="auction-card">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="text-muted">Đã kết thúc</h6>
+                        <h3 id="endedCount">0</h3>
+                    </div>
+                    <div class="bg-secondary p-3 rounded-circle text-white">
+                        <i class="fas fa-check-circle"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="auction-card">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="text-muted">Tổng lượt đấu</h6>
+                        <h3 id="totalBids">0</h3>
+                    </div>
+                    <div class="bg-info p-3 rounded-circle text-white">
+                        <i class="fas fa-gavel"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Danh sách đấu giá -->
+    <div class="auction-card">
+        <ul class="nav nav-tabs mb-3">
+            <li class="nav-item">
+                <a class="nav-link active" data-bs-toggle="tab" href="#all">Tất cả</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" data-bs-toggle="tab" href="#upcoming">Sắp diễn ra</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" data-bs-toggle="tab" href="#active">Đang diễn ra</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" data-bs-toggle="tab" href="#ended">Đã kết thúc</a>
+            </li>
+        </ul>
+
+        <div class="tab-content">
+            <div class="tab-pane active" id="all">
+                <div class="table-responsive">
+                    <table class="table table-hover" id="auctionsTable">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Bất động sản</th>
+                                <th>Giá khởi điểm</th>
+                                <th>Giá hiện tại</th>
+                                <th>Giá sàn</th>
+                                <th>Bắt đầu</th>
+                                <th>Kết thúc</th>
+                                <th>Trạng thái</th>
+                                <th>Số lượt</th>
+                                <th>Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody id="auctionsTableBody">
+                            <!-- Data sẽ được load bằng JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <div class="tab-pane" id="upcoming">
+                <div class="table-responsive">
+                    <table class="table" id="upcomingTable">
+                        <!-- Similar structure -->
+                    </table>
+                </div>
+            </div>
+            
+            <div class="tab-pane" id="active">
+                <div class="table-responsive">
+                    <table class="table" id="activeTable">
+                        <!-- Similar structure -->
+                    </table>
+                </div>
+            </div>
+            
+            <div class="tab-pane" id="ended">
+                <div class="table-responsive">
+                    <table class="table" id="endedTable">
+                        <!-- Similar structure -->
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal tạo phiên đấu giá -->
+<div class="modal fade" id="createAuctionModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Tạo phiên đấu giá mới</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="createAuctionForm">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Tên bất động sản</label>
+                            <input type="text" class="form-control" id="propertyName" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Giá khởi điểm (VNĐ)</label>
+                            <input type="number" class="form-control" id="startingPrice" required>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Giá sàn (VNĐ) - Tối thiểu</label>
+                            <input type="number" class="form-control" id="floorPrice">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Giá trần (VNĐ) - Tối đa</label>
+                            <input type="number" class="form-control" id="ceilingPrice">
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Bước giá tối thiểu</label>
+                            <input type="number" class="form-control" id="minBidStep" value="10000000">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Bước giá tối đa</label>
+                            <input type="number" class="form-control" id="maxBidStep" value="100000000">
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Thời gian bắt đầu</label>
+                            <input type="datetime-local" class="form-control" id="startTime" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Thời gian kết thúc</label>
+                            <input type="datetime-local" class="form-control" id="endTime" required>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Tự động kéo dài (giây)</label>
+                        <input type="number" class="form-control" id="autoExtendSeconds" value="60">
+                        <small class="text-muted">Khi có đấu giá trong khoảng thời gian này, phiên sẽ tự động kéo dài</small>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                <button type="button" class="btn btn-primary" onclick="createAuction()">Tạo phiên đấu giá</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal chi tiết đấu giá -->
+<div class="modal fade" id="auctionDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Chi tiết phiên đấu giá</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <strong>Tên BĐS:</strong> <span id="detailPropertyName"></span>
+                    </div>
+                    <div class="col-md-6">
+                        <strong>Trạng thái:</strong> <span id="detailStatus"></span>
+                    </div>
+                </div>
+                
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <strong>Giá khởi điểm:</strong> <span id="detailStartingPrice"></span>
+                    </div>
+                    <div class="col-md-4">
+                        <strong>Giá hiện tại:</strong> <span id="detailCurrentPrice"></span>
+                    </div>
+                    <div class="col-md-4">
+                        <strong>Giá sàn:</strong> <span id="detailFloorPrice"></span>
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <strong>Bắt đầu:</strong> <span id="detailStartTime"></span>
+                    </div>
+                    <div class="col-md-6">
+                        <strong>Kết thúc:</strong> <span id="detailEndTime"></span>
+                    </div>
+                </div>
+
+                <h6 class="mt-4">Lịch sử đấu giá</h6>
+                <div class="table-responsive">
+                    <table class="table table-sm" id="bidHistoryTable">
+                        <thead>
+                            <tr>
+                                <th>Thời gian</th>
+                                <th>Người đấu</th>
+                                <th>Giá đấu</th>
+                            </tr>
+                        </thead>
+                        <tbody id="bidHistoryBody">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/6.0.1/signalr.js"></script>
+    <script>
+        let connection;
+        let currentAuctions = [];
+
+        $(document).ready(function() {
+            loadAuctions();
+            initializeSignalR();
+            setInterval(loadAuctions, 5000); // Load lại mỗi 5 giây
+        });
+
+        // Khởi tạo SignalR
+        function initializeSignalR() {
+            connection = new signalR.HubConnectionBuilder()
+                .withUrl("/auctionHub")
+                .withAutomaticReconnect()
+                .build();
+
+            connection.start().catch(err => console.error(err.toString()));
+
+            connection.on("PriceUpdated", (data) => {
+                updateAuctionPrice(data.auctionId, data.currentPrice, data.highestBidder);
+            });
+        }
+
+        // Load danh sách đấu giá
+        function loadAuctions() {
+            $.get('/Admin/GetAuctions', function(data) {
+                currentAuctions = data;
+                displayAuctions(data);
+                updateStatistics(data);
+            });
+        }
+
+        // Hiển thị danh sách đấu giá
+        function displayAuctions(auctions) {
+            let html = '';
+            auctions.forEach(a => {
+                let statusClass = getStatusClass(a.status);
+                html += `<tr>
+                    <td>${a.id}</td>
+                    <td>${a.propertyName || 'N/A'}</td>
+                    <td>${formatMoney(a.startingPrice)}</td>
+                    <td class="price-cell" data-auction="${a.id}">${formatMoney(a.currentPrice)}</td>
+                    <td>${a.reservePrice ? formatMoney(a.reservePrice) : 'Không'}</td>
+                    <td>${formatDateTime(a.startTime)}</td>
+                    <td>${formatDateTime(a.endTime)}</td>
+                    <td><span class="badge ${statusClass}">${a.status}</span></td>
+                    <td>${a.bidCount}</td>
+                    <td>
+                        <button class="btn btn-sm btn-info" onclick="viewAuctionDetail(${a.id})">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        <button class="btn btn-sm btn-warning" onclick="editAuction(${a.id})">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-sm ${a.status === 'Đang diễn ra' ? 'btn-danger' : 'btn-success'}" 
+                                onclick="toggleAuctionStatus(${a.id}, '${a.status}')">
+                            ${a.status === 'Đang diễn ra' ? 'Kết thúc' : 'Bắt đầu'}
+                        </button>
+                    </td>
+                </tr>`;
+            });
+            $('#auctionsTableBody').html(html);
+        }
+
+        // Mở modal tạo phiên đấu giá
+        function openCreateAuctionModal() {
+            // Set default times
+            const now = new Date();
+            const startTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0,16);
+            const endTime = new Date(now.getTime() + 30*60000 - now.getTimezoneOffset() * 60000).toISOString().slice(0,16);
+            
+            $('#startTime').val(startTime);
+            $('#endTime').val(endTime);
+            $('#createAuctionModal').modal('show');
+        }
+
+        // Tạo phiên đấu giá mới
+        function createAuction() {
+            const auctionData = {
+                propertyId: 0,
+                propertyName: $('#propertyName').val(),
+                startingPrice: parseFloat($('#startingPrice').val()),
+                floorPrice: $('#floorPrice').val() ? parseFloat($('#floorPrice').val()) : null,
+                ceilingPrice: $('#ceilingPrice').val() ? parseFloat($('#ceilingPrice').val()) : null,
+                minBidStep: parseFloat($('#minBidStep').val()),
+                maxBidStep: parseFloat($('#maxBidStep').val()),
+                startTime: new Date($('#startTime').val()).toISOString(),
+                endTime: new Date($('#endTime').val()).toISOString(),
+                autoExtendSeconds: parseInt($('#autoExtendSeconds').val())
+            };
+
+            const editId = $('#createAuctionForm').data('edit-id');
+            const url = editId ? '/Admin/UpdateAuction' : '/Admin/CreateFullAuction';
+            
+            if (editId) {
+                auctionData.id = editId;
+            }
+
+            $.ajax({
+                url: url,
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(auctionData),
+                success: function(response) {
+                    if (response.success) {
+                        $('#createAuctionModal').modal('hide');
+                        loadAuctions();
+                        $('#createAuctionForm')[0].reset();
+                        $('#createAuctionForm').removeData('edit-id');
+                        $('#createAuctionModal .modal-title').text('Tạo phiên đấu giá mới');
+                        alert(editId ? '✅ Cập nhật thành công!' : '✅ Tạo phiên đấu giá thành công!');
+                    } else {
+                        alert('❌ Lỗi: ' + response.message);
+                    }
+                },
+                error: function(xhr) {
+                    alert('❌ Lỗi: ' + xhr.responseText);
+                }
+            });
+        }
+
+        // Xem chi tiết đấu giá
+        function viewAuctionDetail(id) {
+            $.get(`/Admin/GetAuctionDetail/${id}`, function(data) {
+                $('#detailPropertyName').text(data.propertyName);
+                $('#detailStatus').text(data.status);
+                $('#detailStartingPrice').text(formatMoney(data.startingPrice));
+                $('#detailCurrentPrice').text(formatMoney(data.currentPrice));
+                $('#detailFloorPrice').text(data.reservePrice ? formatMoney(data.reservePrice) : 'Không');
+                $('#detailStartTime').text(formatDateTime(data.startTime));
+                $('#detailEndTime').text(formatDateTime(data.endTime));
+
+                // Hiển thị lịch sử đấu giá
+                let bidHtml = '';
+                data.bids.forEach(b => {
+                    bidHtml += `<tr>
+                        <td>${formatDateTime(b.bidTime)}</td>
+                        <td>${b.userName}</td>
+                        <td>${formatMoney(b.amount)}</td>
+                    </tr>`;
+                });
+                $('#bidHistoryBody').html(bidHtml);
+
+                $('#auctionDetailModal').modal('show');
+            });
+        }
+
+        // Sửa phiên đấu giá
+        function editAuction(id) {
+            $.get(`/Admin/GetAuctionDetail/${id}`, function(data) {
+                $('#propertyName').val(data.propertyName);
+                $('#startingPrice').val(data.startingPrice);
+                $('#floorPrice').val(data.reservePrice || '');
+                $('#startTime').val(formatDateTimeForInput(data.startTime));
+                $('#endTime').val(formatDateTimeForInput(data.endTime));
+                
+                $('#createAuctionModal .modal-title').text('Sửa phiên đấu giá');
+                $('#createAuctionForm').data('edit-id', id);
+                $('#createAuctionModal').modal('show');
+            });
+        }
+
+        // Cập nhật giá đấu
+        function updateAuctionPrice(auctionId, newPrice, highestBidder) {
+            $(`td[data-auction="${auctionId}"]`).each(function() {
+                $(this).text(formatMoney(newPrice));
+                $(this).addClass('price-update');
+                setTimeout(() => {
+                    $(this).removeClass('price-update');
+                }, 1000);
+            });
+
+            loadAuctions();
+        }
+
+        // Bắt đầu/Kết thúc phiên đấu giá
+        function toggleAuctionStatus(id, currentStatus) {
+            let newStatus = '';
+            let action = '';
+            
+            if (currentStatus === 'Đang diễn ra') {
+                newStatus = 'Đã kết thúc';
+                action = 'kết thúc';
+            } else if (currentStatus === 'Sắp diễn ra') {
+                newStatus = 'Đang diễn ra';
+                action = 'bắt đầu';
+            } else {
+                alert('❌ Không thể thay đổi trạng thái này!');
+                return;
+            }
+            
+            if (confirm(`Bạn có chắc muốn ${action} phiên đấu giá này?`)) {
+                $.ajax({
+                    url: '/Admin/UpdateAuctionStatus',
+                    type: 'POST',
+                    data: { id: id, status: newStatus },
+                    success: function(response) {
+                        if (response.success) {
+                            loadAuctions();
+                            alert(`✅ Đã ${action} phiên đấu giá thành công!`);
+                        } else {
+                            alert('❌ Lỗi: ' + response.message);
+                        }
+                    },
+                    error: function(xhr) {
+                        alert('❌ Lỗi: ' + xhr.responseText);
+                    }
+                });
+            }
+        }
+
+        // Cập nhật thống kê
+        function updateStatistics(auctions) {
+            let upcoming = 0, active = 0, ended = 0, totalBids = 0;
+            
+            auctions.forEach(a => {
+                if (a.status === 'Sắp diễn ra') upcoming++;
+                else if (a.status === 'Đang diễn ra') active++;
+                else if (a.status === 'Đã kết thúc') ended++;
+                totalBids += a.bidCount;
+            });
+
+            $('#upcomingCount').text(upcoming);
+            $('#activeCount').text(active);
+            $('#endedCount').text(ended);
+            $('#totalBids').text(totalBids);
+        }
+
+        // Helper functions
+        function formatMoney(amount) {
+            return new Intl.NumberFormat('vi-VN').format(amount) + ' đ';
+        }
+
+        function formatDateTime(datetime) {
+            return new Date(datetime).toLocaleString('vi-VN');
+        }
+
+        function formatDateTimeForInput(datetime) {
+            const d = new Date(datetime);
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            const hours = String(d.getHours()).padStart(2, '0');
+            const minutes = String(d.getMinutes()).padStart(2, '0');
+            return `${year}-${month}-${day}T${hours}:${minutes}`;
+        }
+
+        function getStatusClass(status) {
+            switch(status) {
+                case 'Sắp diễn ra': return 'status-upcoming';
+                case 'Đang diễn ra': return 'status-active';
+                case 'Đã kết thúc': return 'status-ended';
+                default: return 'status-cancelled';
+            }
+        }
+
+        // Reset modal khi đóng
+        $('#createAuctionModal').on('hidden.bs.modal', function () {
+            $('#createAuctionForm')[0].reset();
+            $('#createAuctionForm').removeData('edit-id');
+            $('#createAuctionModal .modal-title').text('Tạo phiên đấu giá mới');
+        });
+    </script>
+}
